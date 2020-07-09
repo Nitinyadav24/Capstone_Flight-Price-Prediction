@@ -4,7 +4,7 @@
 
 ##### The project highlighted use of predictive analytics in Airline industry where price is very dynamic depending on type of airline, time of day and day of week etc. We concluded that predictive analytics can be a right forecaster of flight price based on historic pricing and give competitive advantage to airline industries. Use of ensemble techniques along with hyper parameter tuning ensured that model has good accuracy and also reduced the problem of overfitting for new unseen test data. Feature scaling and selection plays very important role in part of model building
 
-** Tools and Techniques Used
+**Tools and Techniques Used**
 
 - Anova
 - Decision Trees
