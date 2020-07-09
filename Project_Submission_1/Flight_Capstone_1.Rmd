@@ -1,0 +1,603 @@
+---
+title: "Flight_Capstone"
+author: "Nitin Yadav"
+date: "29/02/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+
+# Problem Statement 
+
+Airline industries are in continuous tussle to get more and more customers and in turn are working on very thin margins. The price of flight tickets are very unpredictable considering the dynamic nature of business and governing the law of demand and supply. At times we have noted that for a particular city or destination when we search for flight price , the price keeps getting dynamically updated depending on the search criteria, seat availability, date and time of travel etc. Hence it becomes very important for the Airline industry to have a right price prediction mechanism which is backed up by data and helps the industry to take a data driven decision.
+
+
+# Need of Study Project
+
+This is a problem of machine learning where we have been given 2 data sets i.e Train and Test set.
+Train data consist of 10683 records 
+Test data consist of 2671 records 
+
+
+# Understanding business/social opportunity
+
+This is a MAchine learning problem based on supervised learning. Here we train the algorithm using the Train dataset. In supervised machine learnng we know the Target variable and we try to identify the kep predictors on which the response variable (Y) is dependent. Based on the trained machine model, we then try to predict the target using a Test set. This is very crucial in Airline industry as price of a flight is very important parameter for a customer to take the travel decision and a right price point will be beneficial for both customer and the Airline company. Hence the better the MAchine learning model, better would be the accuracy and hence minimum error.
+
+
+
+```{r}
+# Loading  required libraries 
+
+library(readxl)
+library(readr)
+library(dplyr)
+library(corrplot)
+library(mice)
+library(DMwR)
+library(car)
+library(caret)
+library(SDMTools)
+library(lattice)
+library(tidyr)
+library(data.table)
+library(chron)
+library(scales)
+library(yarrr)
+library(lubridate)
+```
+
+```{r}
+# Loading the Dataset 
+
+# Setting the current working directory 
+setwd("C:/Users/nitin/OneDrive/Desktop/R and python Programming/Datasets")
+FTrain=read_excel("FlightPrice_train.xlsx")
+FTest=read_excel("FlightPrice_test.xlsx")
+
+
+
+```
+
+## Data Report 
+
+# Data collection in terms of time, frequency and methdology
+
+If we see the data collected , we notice that data provided comprises of 4 months data starting from MArch till June 2019 and the data is provided for Weekday, weekends and for 24 hour time period across all days. There can be various methodologies to collect data i.e through APIs as the direct hstorical data for airline flights is not available, howwver different travel websites provided data in various fields which has to be cleaned first to get data in desired format
+
+# visual inspection of Data (Rows, Columns, Descriptive Stats)
+
+The Train dataset comprises of 10683 rows and 10 columns. Test set consist of 2671 row items and 10 variables. We observe the following in dataset 
+1. Price is dependent variable, all other variable are independent or predictors
+2. Except Price which is numeric, all other variables are in "Char" format which needs to be converted to categorical or right class
+3. Date of Journey column needs to be separated into "Date", "Month" and "Year" columns and convert to Date format
+4. Route Info has starting city as "Source" and end city as "Destination". We need to do feature engineering to create 2 columns i.e for Source and Destination using the separate function and see if this matches with the existing source and destination information provided.
+5. Departure time and arrival time have to be converted to time format and the duration has to be put in either "Total hours" or "Total mins". We have taken "Total Mins"
+6. Total stops have to be converted to factor category
+7. Jet Airways and Indigo have the maximum number of flights followed by Air India
+8. Delhi, Kolkata and Bangalore have the maximum flights starting from them as Source City
+9. Cochin, Bangalore and Delhi have the maximum flights reaching there as Destination City
+10. There are 3491 non-stop flights and 5625 flights with 1 stop.
+11. There is a huge variation in the price , minimum is 1750 and maximum goes upto 79500. There are possibility of outliers in the PRice column.
+12. Dates within 1st to 10th of month have highest number of flights and maximum flight are in month of May-June (Possibility of Summer Holidays)
+
+# Understanding of Attributes (variable info)
+
+1. Convert Date of Journey in Date, month and Year columns 
+2. Convert the required variables to Factor or Date formats
+3. Separate the Duration column in Hour and minutes to calculate Total Minutes 
+4. Convert the Departure time in two brackets i.e day time (9am-9pm) and night time (9pm-9am)
+5. Get the weekday information and create a separate column for the day of week from date of journey field
+
+```{r}
+# Visual inspection of data 
+
+
+# Converting the data into required formats 
+
+
+FTrain$Airline=as.factor(FTrain$Airline)
+FTrain$Date_of_Journey=as.Date(FTrain$Date_of_Journey, format = "%d/%m/%Y")
+FTrain$Date=format(FTrain$Date_of_Journey, "%d")
+FTrain$Month=format(FTrain$Date_of_Journey, "%m")
+FTrain$Year=format(FTrain$Date_of_Journey, "%Y")
+
+FTrain$Date=as.factor(FTrain$Date)
+FTrain$Month=as.factor(FTrain$Month)
+FTrain$Year=as.factor(FTrain$Year)
+
+FTrain$Source=as.factor(FTrain$Source)
+FTrain$Destination=as.factor(FTrain$Destination)
+
+summary(FTrain)
+
+str(FTrain)
+
+colnames(FTrain)
+
+attach(FTrain)
+
+# Separate source and destination 
+
+separate(FTrain, Route, into=c("Source","Destination"), sep = "[^[:alnum:]]+", remove = TRUE,
+  convert = FALSE, extra = "warn", fill = "warn")
+
+# Converting Arrival and Departure in Time format
+
+FTrain$Dep_Time=as.POSIXct(Dep_Time, format="%H:%M")
+
+# Date transformation for Arrival time 
+
+new_df <- separate(data = FTrain, col = Arrival_Time, into  = c('Time', 'Date'), sep = ' ')
+
+FTrain=cbind(FTrain,new_df[,7])
+
+# Renaming the arrival time column name 
+
+names(FTrain)[names(FTrain)=="Time"]="Arrival-Time"
+
+FTrain$`Arrival-Time`=as.POSIXct(FTrain$`Arrival-Time`, format="%H:%M")
+
+#FTrain$Dep_Time=times(format(FTrain$Dep_Time, "%H:%M:%S"))
+#FTrain$`Arrival-Time`=times(format(FTrain$`Arrival-Time`, "%H:%M:%S"))
+
+names(FTrain)[names(FTrain)=="Date"]="Date of Travel"
+names(FTrain)[names(FTrain)=="Month"]="Month of Travel"
+names(FTrain)[names(FTrain)=="Year"]="Year of Travel"
+
+
+FTrain$Total_Stops=as.factor(FTrain$Total_Stops)
+
+
+
+```
+
+```{r}
+# Keeping the variables of interest 
+
+FTrain=FTrain[,c(1,2,12:14,3,4,6,15,8,9,11)]
+
+#FTrain$Dep_Time=as.ITime(FTrain$Dep_Time)
+#FTrain$`Arrival-Time`=as.ITime(FTrain$`Arrival-Time`)
+
+
+temp <- separate(data = FTrain, col = Duration, into  = c('Hour', 'Mins'), sep = ' ')
+
+temp$h1=parse_number(temp$Hour)
+temp$h2=parse_number(temp$Mins)
+
+temp$h2[is.na(temp$h2)] <- 0
+temp$Total_Duration=60*temp$h1+temp$h2
+
+FTrain=cbind(FTrain,temp$Total_Duration)
+
+names(FTrain)[names(FTrain)=="temp$Total_Duration"]="Duration in Mins"
+
+FTrain=FTrain[,-10]
+
+str(FTrain)
+
+
+
+```
+
+## Exploratory Data Analysis
+
+# Univariate Analysis
+
+1. Price and Total Duration are numeric categories and all other columns are either categorical or date class
+2. Boxplot and histogram of Price shows the presence of outliers
+3. Skewness is a mesure of symmetry , positive skewness for price (1.85) means the mean is more than median of the entries and hence it is right skewed
+4. Kurtosis define the tail shape of data distribution , in this we have excess kurtosis (13.5) which is towards positive hence it indicates Fat tailed distribution or leptokurtic
+5. Day of Travel shows that maximum number of flights are on Monday , Wednesday and Thursday
+6  Departure Time and arrival time shows that maximum number of flights arrive and depart around 7 pm in evening 
+7. Minimum of duration (in mins) is 75 mins and maximum is 2860.
+8. Total count of flights is highest during Daytime, on wednesday as day of week and flight with 1 stop
+
+
+# Bivariate Analysis
+
+1. Average flight price on Sunday and Friday are highest and on Monday are lowest
+2. Price of Daytime flight is more than night time
+3. Jet Airways, Air India and Indigo have highest number of flights in May june month which is maximum or peak season from flights perspective due to summer season
+4. Delhi, Kolkata and Bangalore are the popular choice as Source for boarding the flights
+5. Cochin, Bangalore are the popular choice as Destination 
+6. Average Flight price per week is high in the months of May and June compared to MArch April
+7. Jet Airways command the highest price among the Airline categories as evident from box plot
+8. Average flight price is high during the first 15 days of month compared to the month end days unless there is some specific festive occasion
+9. Delhi and Kolkata commands the highest median price among the other source cities 
+10. Delhi and Kolkata has highest number of flights as source city and also the count of 1 stops is high for these cities
+11. Flight price and Flight duration in mins have a positive correlation of 0.56, means as duration increases flight price increases.
+
+
+# Unwanted variable Removal, outlier treatment and Missing value Treatment
+
+1. We remove unwanted variable like Route information and Additional info from our dataset as they are not contributing to the model and we have already extracted source and destination information from Route information.
+
+2. For outlier treatment, we notice that outlier present in price , we take maximum value of price as 22500, and drop the data points above that point. By doing this we have eliminated around 322 entires of flight price having value higher than 22500
+
+3. For NA values , we notice that there is 1 NA present in Total Stops column, hence we take complete cases and drop the single entry. After doing this transformation the final row count is 10361 and 16 rows
+
+
+# Addition of New Variables
+
+This step we have already covered as part of earlier description provided.
+
+
+# Insights from EDA
+
+We have already covered insights from EDA. For data imbalance, it make more sense when the classification is binary (0 or 1) but in our case the response variable (Price) is numeric so data imbalance would not play much role here. also the imbalance due to oultier entries is around 3% and very minimal.
+
+Also techniques like clustering and PCA would have played role where we didnt have target column and we are trying to predict the target, but in our case we have been given the price information and we need to use the same to predict the test data once the model gets sufficient learning and tuning from train data.
+
+
+
+
+
+```{r}
+
+# Checking the NA values in the complete data set 
+
+
+
+sum(is.na(FTrain))
+colSums(is.na(FTrain))
+
+# Only 1 NA value in the model , in the Total Stops variable, which is manageable.
+
+
+
+```
+
+```{r}
+# Outlier assesment in the dataset 
+
+hist(FTrain$Price)
+boxplot(FTrain$Price, horizontal = TRUE, col="Red")
+
+
+hist(FTrain$`Duration in Mins`)
+boxplot(FTrain$`Duration in Mins`, horizontal = TRUE, Col="Green")
+
+summary(FTrain)
+
+```
+
+```{r}
+colnames(FTrain)
+
+str(FTrain)
+```
+
+```{r}
+
+FTrain$CombineDate_Time =paste(FTrain$Date_of_Journey, FTrain$Dep_Time)
+
+FTrain$CombineDate_Time=as.Date(FTrain$CombineDate_Time)
+FTrain %>% ggplot( aes(FTrain$CombineDate_Time)) + geom_freqpoly(binwidth=86400)
+
+ggplot(FTrain, aes(x = FTrain$Date_of_Journey, fill = factor(FTrain$Airline))) +
+    geom_bar(stat = "count")
+
+ggplot(FTrain, aes(x = FTrain$`Date of Travel`, fill = factor(Source))) +
+    geom_bar(stat = "count")
+
+ggplot(FTrain, aes(x = FTrain$`Month of Travel`, fill = factor(Source))) +
+    geom_bar(stat = "count")
+
+
+ggplot(FTrain, aes(x = FTrain$Dep_Time, fill = factor(Source))) +
+    geom_bar(stat = "count")
+
+
+ggplot(FTrain, aes(x = FTrain$Dep_Time, fill = factor(Source))) +
+    geom_bar(stat = "count") +
+      scale_x_datetime(date_breaks = "4 hour",
+                       date_labels = "%I:%M %p")
+
+
+ggplot(FTrain, aes(x = FTrain$`Arrival-Time`, fill = factor(Destination))) +
+    geom_bar(stat = "count") +
+      scale_x_datetime(date_breaks = "4 hour",
+                       date_labels = "%I:%M %p")
+
+
+#ggplot(FTrain, aes(x = FTrain$`Arrival-Time`, fill = factor(Destination))) +
+#geom_bar(stat = "count") +
+#scale_x_datetime(date_breaks = "2 hour",labels = date_format("%H:%M:%S"))
+
+
+FTrain %>% 
+  mutate(wday = wday(FTrain$Date_of_Journey, label = TRUE)) %>% 
+  ggplot(aes(x = wday)) +
+    geom_bar()
+
+
+FTrain %>% 
+  count(week = floor_date(FTrain$Date_of_Journey, "week")) %>% 
+  ggplot(aes(week, n)) +
+    geom_line()
+
+
+FTrain %>% 
+  mutate(dep_hour = update(FTrain$Dep_Time, yday = 1)) %>% 
+  ggplot(aes(dep_hour)) +
+    geom_freqpoly(binwidth = 300)
+
+
+
+ggplot(data = FTrain, aes(x = FTrain$Dep_Time)) +
+  geom_histogram(binwidth = 50) + scale_x_datetime(date_breaks = "3 hour",
+                       date_labels = "%I:%M %p")
+
+
+ggplot(data = FTrain, aes(x = FTrain$`Arrival-Time`)) +
+  geom_histogram(binwidth = 50) + scale_x_datetime(date_breaks = "3 hour",
+                       date_labels = "%I:%M %p")
+
+
+FTrain %>%
+  group_by(FTrain$`Date of Travel`) %>%
+  summarise(count = n())
+
+```
+```{r}
+library(e1071)
+
+# Measurement of skewness and kurtosis 
+
+# Skewness is a mesure of symmetry , positive skewness in this case means the mean is more than median of the entries and hence it is right skewed
+
+skewness(FTrain$Price)
+
+kurtosis(FTrain$Price)
+
+
+# Kurtosis define the tail shape of data distribution , in this we have excess kurtosis which is towards positive hence it indicates Fat tailed distribution or leptokurtic
+
+
+```
+
+
+```{r}
+str(FTrain)
+FTrain$DayofWeek=weekdays(FTrain$Date_of_Journey)
+FTrain$HourofDay= cut.POSIXt(FTrain$Dep_Time, breaks = "hour")
+FTrain$HourofDay=as.ITime(FTrain$HourofDay)
+FTrain$HourofDay <- hour(FTrain$HourofDay)
+FTrain$Hourbracket <- ifelse( FTrain$HourofDay<9 | 21<FTrain$HourofDay, "Night Time","Day Time" )
+
+FTrain$DayofWeek=as.factor(FTrain$DayofWeek)
+FTrain$Hourbracket=as.factor(FTrain$Hourbracket)
+
+
+```
+
+```{r}
+# Some Exploratory data analysis
+
+# Removing duplicates and keeping only unique values 
+
+FTrain=unique(FTrain)
+dim(FTrain)
+
+attach(FTrain)
+
+aggregate(formula = Price ~ DayofWeek,
+          data = FTrain,
+          FUN = mean)
+
+aggregate(formula = Price ~ Hourbracket,
+          data = FTrain,
+          FUN = mean)
+```
+
+```{r}
+# Outlier and missing values treatment 
+
+# Dropping the NA value, we found that only 1 NA value in Total stops, hence dropping it
+
+FTrain=FTrain[complete.cases(FTrain), ]
+
+boxplot(FTrain[,11:12], horizontal = TRUE, col="Red","Blue")
+
+# Through boxplot we find that approx 3% of entries in the total dataset are outliers, so dropping those 
+
+FTrain1=FTrain[which(FTrain$Price<22500),]
+
+boxplot(FTrain1[,11:12], horizontal = TRUE, col="Red","Blue")
+dim(FTrain1)
+
+head(FTrain1[order(FTrain1$Price,decreasing=TRUE),])
+
+tail(FTrain1[order(FTrain1$`Duration in Mins`),])
+
+
+```
+
+```{r}
+# EDA on the train data set 
+
+# Boxplot of numerical vs categorical 
+
+boxplot(FTrain1$Price~FTrain1$DayofWeek, xlab="Day of Week",
+        ylab="Flight price",main="Price by Day of week",col=c("Red","Green"))
+
+boxplot(FTrain1$Price~FTrain1$Hourbracket, xlab="Hour of Day",
+        ylab="Flight price",main="Price by Day vs Night",col=c("Blue","Cyan"))
+
+
+boxplot(FTrain1$`Duration in Mins`~FTrain1$DayofWeek, xlab="Day of Week",
+        ylab="Flight duration",main="Duration by Day of week",col=c("Red","Green"))
+
+boxplot(FTrain1$`Duration in Mins`~FTrain1$Hourbracket, xlab="Hour of Day",
+        ylab="Flight duration",main="Duration by Day vs Night",col=c("Blue","Cyan"))
+
+
+boxplot(FTrain1$Price~FTrain1$Total_Stops, xlab="Hour of Day",
+        ylab="Flight duration",main="Duration by Day vs Night",col=c("Blue","Cyan"))
+
+```
+
+## Independent variables that are singificant
+
+Based on the data transformation and feature engineering we have done above , we can say that except the columns "Route" and "Additional Info", all other columns are significant in the model building. The same will get validated once we start building the model using Multiple linear regression, Decision Tree, Random Forest, Gradient Boost etc.
+
+
+## Relationship between time of journey and Flight prices
+
+Response to this section we have covered earlier. Flight prices are costlier during the day time and specific during the evening time. Also flight price on weekend are costlier compared to weekdays. Flight price in the morning hours 8-9 am and in evening 4-6 pm are higher compared to other time.
+
+## Hypothesis Testing
+
+# Flight Prices on Weekdays are cheaper than flight prices on weekends.
+
+We did anova testing on the linear model built using Price and "DayofWeek" and found the P value very small and hence null hypothesis is rejected and we can say that flight price on weekends are costlier compared to weekdays
+
+
+# Flight Prices during peak hours (9 AM till 9 PM ) are costlier than flights at other times.
+
+We did a 2-tail t test for the same and found that P value is very small and less than 0.05 , hence null hypothesis is rejected and hence Flight price during peak hours 9am-9pm are higher than non peak hours ie 9pm-9am.
+
+
+
+```{r}
+
+
+
+pirateplot(formula = FTrain1$Price ~ Total_Stops, data=FTrain1,
+           main="pirate plot of airline")
+
+pirateplot(formula = FTrain1$Price ~ DayofWeek, data=FTrain1,
+           main="pirate plot by day of week")
+
+# Hypothesis testing 
+
+# when we do hypothesis testing for the flight price to see if there is a significant different of flight price in day time versus night time, we found
+# P value of less than 0.05 which means we reject the null hypothesis and accept alternative that there is significant price difference in flight during day time versus night time
+
+
+t.test(formula = FTrain1$Price ~ Hourbracket,
+       data = FTrain1,
+       alternative = 'two.sided')
+
+# Correlation between price and duration in mins shows that price of flight significantly depends on the total duration of flight
+
+cor.test(formula = ~ Price + `Duration in Mins`,
+         data = FTrain1)
+
+
+# to check whether there is signficant difference in price over weekends compared to weekdays
+
+Test= lm(formula = FTrain1$Price ~ DayofWeek,
+                   data = FTrain1)
+
+anova(Test)
+
+# when we do Anova testing we found that P value is very small which indicates that flight price over weekend is significantly different compared to weekdays 
+
+```
+
+```{r}
+library(miscset)
+
+ggplotGrid(ncol = 2,
+  lapply(c("Airline","Source","Destination","Total_Stops","DayofWeek","Hourbracket"),
+    function(col) {
+        ggplot(FTrain1, aes_string(col)) + geom_bar() + coord_flip()
+      
+    }))
+
+
+```
+
+```{r}
+
+# Numerical
+
+qplot(FTrain1$Price, data = FTrain1, main=" Price Histogram Plot", xlab = "Price", ylab = "frequency")
+plot(FTrain1$Price,FTrain1$`Duration in Mins`)
+
+
+# Categorical
+
+qplot(FTrain1$Airline, data = FTrain1, main=" Airline Bar plot", xlab = "Airline", ylab = "frequency")
+
+Hday=as.factor(FTrain1$HourofDay)
+
+
+# Numerical and Categorical together
+
+# Plotting the price wrt categorical variable like Airline, Total stops, Source, Destination, Day of Week and Hour bracket 
+
+qplot(Hday,FTrain1$Price, data = FTrain1, , geom="boxplot",main=" Price by Hour of day", xlab = "Hour of Day", ylab ="Price")
+
+
+
+qplot(FTrain1$Airline,FTrain1$Price, data = FTrain1, , geom="boxplot",main=" Price by Airline", xlab = "Airline", ylab ="Price")
+qplot(FTrain1$`Date of Travel`,FTrain1$Price, data = FTrain1, , geom="boxplot",main=" Price by Date of Travel", xlab = "Date of Travel", ylab ="Price")
+qplot(FTrain1$Source,FTrain1$Price, data = FTrain1, , geom="boxplot",main=" Price by source", xlab = "Source", ylab ="Price")
+
+ggplot(FTrain1, aes(x=Source, y=Price)) + geom_boxplot() + facet_grid(~Hourbracket) 
+ggplot(FTrain1, aes(x=Destination, y=Price)) + geom_boxplot() + facet_grid(~Hourbracket) 
+
+
+ggplot(FTrain1, aes(x=Hourbracket, y=Price)) + geom_boxplot() + facet_grid(~Airline)
+ggplot(FTrain1, aes(x=Hourbracket, y=Price)) + geom_boxplot() + facet_grid(~DayofWeek)
+
+qplot(FTrain1$Source,FTrain1$Price, data = FTrain1, , geom="boxplot",main=" Price by Source City", xlab = "Source City", ylab ="Price")
+
+histogram(~FTrain1$Price|FTrain1$DayofWeek, data = FTrain1)
+
+
+# Categorical against categorical 
+
+qplot(FTrain1$Airline,fill=FTrain1$Source, data = FTrain1, geom="bar",
+      main="Count of Airline by Source",
+      xlab="Airline",
+      ylab="Frequency")
+
+qplot(FTrain1$Airline,fill=FTrain1$Destination, data = FTrain1, geom="bar",
+      main="Count of Airline by Destination",
+      xlab="Airline",
+      ylab="Frequency")
+
+qplot(FTrain1$Source,fill=FTrain1$Total_Stops, data = FTrain1, geom="bar",
+      main="Count of Total Stops from Source",
+      xlab="Source Cities",
+      ylab="Frequency")
+
+qplot(FTrain1$DayofWeek,fill=FTrain1$Hourbracket, data = FTrain1, geom="bar",
+      main="Count of Day/Night by weekday",
+      xlab="Day of Week",
+      ylab="Frequency")
+
+
+# Numerical against numerical
+
+qplot(FTrain1$HourofDay, FTrain1$Price, data = FTrain1, color=FTrain1$Airline , main = "Price vs hour of day", xlab = "hour of day", ylab = "price")
+
+qplot(FTrain1$Price, FTrain1$`Duration in Mins`, data = FTrain1, color=FTrain1$Airline , main = "Price vs duration", xlab = "Price", ylab = "Duration in mins")
+
+qplot(FTrain1$Price, FTrain1$`Duration in Mins`, data = FTrain1, color=FTrain1$Total_Stops , main = "Price vs duration", xlab = "Price", ylab = "Duration in mins")
+
+qplot(FTrain1$Price, FTrain1$`Duration in Mins`, data = FTrain1, color=FTrain1$Hourbracket , main = "Price vs duration", xlab = "Price", ylab = "Duration in mins")
+
+
+ggplot(FTrain1, aes(x=Airline , y= Price, fill=DayofWeek))+geom_boxplot()
+
+ggplot(FTrain1, aes(x=DayofWeek , y= Price, fill=Total_Stops))+geom_boxplot()
+
+
+corrplot(cor(FTrain1[,c(11,12)]))
+cor(FTrain1[,c(11,12)])     
+
+
+```
+
